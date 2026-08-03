@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Cafe Aroma — Buyurtma</title>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+/* ===================== DESIGN TOKENS ===================== */
+:root{
+  --bg:#140d0a;
+  --bg-soft:#1b1310;
+  --surface:#241a15;
+  --surface-2:#2f2219;
+  --line: rgba(244,233,216,0.08);
+  --cream:#f4e9d8;
+  --cream-dim:#c9b89e;
+  --gold:#cda45e;
+  --gold-bright:#eac583;
+  --gold-dim: rgba(205,164,94,0.16);
+  --red:#c1443a;
+  --red-dim: rgba(193,68,58,0.18);
+  --green:#7fae63;
+  --radius-lg:22px;
+  --radius-md:14px;
+  --radius-sm:10px;
+  --shadow-soft: 0 10px 30px rgba(0,0,0,0.35);
+  --ease: cubic-bezier(.22,1,.36,1);
+}
+
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{
+  background: radial-gradient(120% 120% at 50% -10%, #241a14 0%, var(--bg) 55%);
+  color: var(--cream);
+  font-family:'Manrope', sans-serif;
+  min-height:100vh;
+  padding-bottom: 110px;
+  overflow-x:hidden;
+}
+::selection{background:var(--gold); color:#140d0a;}
+
+.hidden{display:none !important;}
+
+/* ===================== UTIL ANIMATIONS ===================== */
+@keyframes fadeIn{ from{opacity:0;} to{opacity:1;} }
+@keyframes slideUp{ from{opacity:0; transform:translateY(22px);} to{opacity:1; transform:translateY(0);} }
+@keyframes popIn{ from{opacity:0; transform:scale(.86);} to{opacity:1; transform:scale(1);} }
+@keyframes pulseGlow{
+  0%,100%{ box-shadow:0 0 0 0 rgba(205,164,94,0.45); }
+  50%{ box-shadow:0 0 0 8px rgba(205,164,94,0.0); }
+}
+@keyframes steamRise{
+  0%{ transform:translateY(0) scaleX(1); opacity:0; }
+  20%{opacity:.65;}
+  100%{ transform:translateY(-26px) scaleX(1.4); opacity:0; }
+}
+@keyframes shake{
+  10%,90%{transform:translateX(-1px);}
+  20%,80%{transform:translateX(2px);}
+  30%,50%,70%{transform:translateX(-4px);}
+  40%,60%{transform:translateX(4px);}
+}
+.reveal{ animation: slideUp .6s var(--ease) both; }
+.reveal-fade{ animation: fadeIn .5s var(--ease) both; }
+.press{ transition: transform .12s var(--ease); }
+.press:active{ transform: scale(.94); }
+
+/* ===================== HEADER ===================== */
+.app-header{
+  padding: 30px 20px 26px;
+  text-align:center;
+  position:relative;
+  animation: fadeIn .7s var(--ease) both;
+}
+.brand-eyebrow{
+  font-size:12px;
+  letter-spacing:.22em;
+  text-transform:uppercase;
+  color: var(--gold);
+  font-weight:700;
+  margin-bottom:10px;
+  opacity:.9;
+}
+.brand-name{
+  font-family:'Fraunces', serif;
+  font-size:30px;
+  font-weight:700;
+  color: var(--cream);
+  margin:0 0 6px;
+  letter-spacing:.01em;
+}
+.brand-welcome{
+  font-size:15px;
+  color: var(--cream-dim);
+  margin:0;
+}
+.cup-wrap{
+  width:56px; height:56px;
+  margin: 14px auto 4px;
+  position:relative;
+}
+.cup-emoji{ font-size:38px; display:block; position:relative; z-index:2; }
+.steam{
+  position:absolute; top:-6px; left:50%;
+  width:3px; height:18px; border-radius:3px;
+  background: linear-gradient(to top, var(--gold-bright), transparent);
+  transform-origin:bottom center;
+}
+.steam:nth-child(1){ left:38%; animation: steamRise 2.6s ease-in-out infinite; }
+.steam:nth-child(2){ left:50%; animation: steamRise 2.6s ease-in-out .5s infinite; }
+.steam:nth-child(3){ left:62%; animation: steamRise 2.6s ease-in-out 1s infinite; }
+
+.bean-divider{
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  margin: 4px 0 0;
+}
+.bean-divider span{
+  width:4px; height:4px; border-radius:50%;
+  background: var(--gold); opacity:.55;
+}
+.bean-divider span:nth-child(2){ width:6px; height:6px; opacity:.9; }
+
+/* ===================== SECTION WRAP ===================== */
+.section{
+  padding: 8px 18px 26px;
+}
+.section-title{
+  font-family:'Fraunces', serif;
+  font-size:20px;
+  font-weight:600;
+  color: var(--cream);
+  margin: 6px 0 4px;
+}
+.section-sub{
+  font-size:13px;
+  color: var(--cream-dim);
+  margin: 0 0 16px;
+}
+
+/* ===================== TABLES ===================== */
+.tables-grid{
+  display:grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap:12px;
+}
+.table-card{
+  aspect-ratio: 1/1;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:6px;
+  cursor:pointer;
+  transition: transform .18s var(--ease), border-color .25s, background .25s;
+  animation: popIn .45s var(--ease) both;
+}
+.table-card .t-icon{ font-size:22px; }
+.table-card .t-label{ font-size:12.5px; font-weight:700; color: var(--cream-dim); }
+.table-card .t-status{ font-size:10px; color: var(--cream-dim); opacity:.7; }
+
+.table-card.available:hover{ border-color: var(--gold-dim); transform: translateY(-2px); }
+.table-card.available:active{ transform: scale(.95); }
+
+.table-card.selected{
+  background: linear-gradient(160deg, var(--gold-dim), var(--surface));
+  border-color: var(--gold);
+  animation: pulseGlow 1.6s ease-in-out infinite, popIn .45s var(--ease) both;
+}
+.table-card.selected .t-label{ color: var(--gold-bright); }
+.table-card.selected .t-status{ color: var(--gold); }
+
+.table-card.reserved{
+  background: var(--red-dim);
+  border-color: rgba(193,68,58,0.4);
+  cursor:not-allowed;
+  opacity:.75;
+}
+.table-card.reserved .t-label, .table-card.reserved .t-status{ color:#e39d97; }
+
+/* ===================== MENU TABS ===================== */
+.menu-tabs{
+  display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; margin-bottom:16px;
+  scrollbar-width:none;
+}
+.menu-tabs::-webkit-scrollbar{ display:none; }
+.menu-tab{
+  flex:0 0 auto;
+  padding:9px 16px;
+  border-radius:999px;
+  background: var(--surface);
+  border:1px solid var(--line);
+  color: var(--cream-dim);
+  font-size:13px; font-weight:700;
+  white-space:nowrap;
+  cursor:pointer;
+  transition: all .2s var(--ease);
+}
+.menu-tab.active{
+  background: var(--gold);
+  color:#1c130d;
+  border-color: var(--gold);
+}
+
+.menu-list{
+  display:grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap:12px;
+}
+.menu-item{
+  display:flex; flex-direction:column; align-items:stretch; gap:8px;
+  background: var(--surface);
+  border:1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding:14px 12px;
+  animation: slideUp .45s var(--ease) both;
+  transition: border-color .25s, transform .18s var(--ease);
+}
+.menu-item:hover{ border-color: var(--gold-dim); transform: translateY(-2px); }
+.menu-item .m-emoji{
+  width:100%; height:64px; flex:0 0 auto;
+  border-radius:12px;
+  background: var(--surface-2);
+  display:flex; align-items:center; justify-content:center;
+  font-size:28px;
+}
+.menu-item .m-info{ flex:1; min-width:0; text-align:center; }
+.menu-item .m-name{ font-size:14px; font-weight:700; color:var(--cream); }
+.menu-item .m-desc{ font-size:11px; color:var(--cream-dim); margin-top:2px; min-height:14px; }
+.menu-item .m-price{ font-size:13px; color:var(--gold-bright); font-weight:700; margin-top:6px; }
+
+.qty-control{
+  display:flex; align-items:center; justify-content:center; gap:10px;
+}
+.qty-btn{
+  width:28px; height:28px; border-radius:8px;
+  background: var(--surface-2);
+  border:1px solid var(--line);
+  color:var(--cream);
+  font-size:16px; font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  transition: transform .12s var(--ease), background .2s;
+}
+.qty-btn:active{ transform: scale(.85); background: var(--gold-dim); }
+.qty-btn.plus{ color:#1c130d; background:var(--gold); border-color:var(--gold); }
+.qty-value{ min-width:16px; text-align:center; font-weight:800; font-size:14px; }
+
+/* ===================== FORM ===================== */
+.form-group{ margin-bottom:14px; }
+.form-label{
+  font-size:12px; font-weight:700; color: var(--gold);
+  text-transform:uppercase; letter-spacing:.06em;
+  display:block; margin-bottom:6px;
+}
+.form-input{
+  width:100%;
+  padding:13px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border:1px solid var(--line);
+  color: var(--cream);
+  font-size:14.5px;
+  font-family:'Manrope', sans-serif;
+  transition: border-color .2s, box-shadow .2s;
+}
+.form-input::placeholder{ color:rgba(201,184,158,0.5); }
+.form-input:focus{ outline:none; border-color: var(--gold); box-shadow:0 0 0 3px var(--gold-dim); }
+.form-input.error{ border-color: var(--red); animation: shake .35s ease; }
+
+/* ===================== MAP ===================== */
+#map{
+  width:100%; height:260px;
+  border-radius: var(--radius-md);
+  border:1px solid var(--line);
+  overflow:hidden;
+}
+.map-hint{
+  display:flex; align-items:center; gap:8px;
+  font-size:12px; color: var(--cream-dim);
+  margin-top:10px;
+}
+.map-hint .dot{ width:6px; height:6px; border-radius:50%; background:var(--gold); flex:0 0 auto; }
+.location-badge{
+  display:none;
+  margin-top:10px;
+  padding:9px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--gold-dim);
+  border:1px solid var(--gold);
+  font-size:12.5px;
+  color: var(--gold-bright);
+  align-items:center; gap:6px;
+}
+.location-badge.show{ display:flex; animation: popIn .3s var(--ease) both; }
+
+.note-input{
+  resize:none;
+  font-family:'Manrope', sans-serif;
+  line-height:1.5;
+}
+
+/* ===================== CONFIRM CHECKBOX ===================== */
+.confirm-section{ padding-top:0; }
+.confirm-box{
+  display:flex; align-items:flex-start; gap:12px;
+  background: var(--surface);
+  border:1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding:14px;
+  cursor:pointer;
+  transition: border-color .25s, background .25s, box-shadow .25s;
+}
+.confirm-box input{
+  position:absolute;
+  opacity:0;
+  width:0; height:0;
+}
+.confirm-mark{
+  flex:0 0 auto;
+  width:22px; height:22px;
+  border-radius:7px;
+  border:1.5px solid var(--gold-dim);
+  background: var(--surface-2);
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px; font-weight:800; color:transparent;
+  transition: all .2s var(--ease);
+  margin-top:1px;
+}
+.confirm-box input:checked ~ .confirm-mark{
+  background: var(--gold);
+  border-color: var(--gold);
+  color:#1c130d;
+  animation: popIn .25s var(--ease) both;
+}
+.confirm-box input:checked ~ .confirm-text{ color: var(--cream); }
+.confirm-text{
+  font-size:12.5px;
+  line-height:1.55;
+  color: var(--cream-dim);
+  transition: color .2s;
+}
+.confirm-box.error{
+  border-color: var(--red);
+  animation: shake .35s ease;
+}
+
+/* ===================== BOTTOM CART BAR ===================== */
+.cart-bar{
+  position:fixed; left:0; right:0; bottom:0;
+  padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(20,13,10,0), var(--bg) 22%);
+  z-index:50;
+}
+.cart-inner{
+  background: var(--surface);
+  border:1px solid var(--gold-dim);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+  display:flex; align-items:center; gap:12px;
+  box-shadow: var(--shadow-soft);
+}
+.cart-total-wrap{ flex:1; min-width:0; }
+.cart-count{ font-size:11px; color: var(--cream-dim); }
+.cart-total{ font-family:'Fraunces', serif; font-size:19px; font-weight:700; color: var(--gold-bright); }
+.submit-btn{
+  flex:0 0 auto;
+  background: linear-gradient(135deg, var(--gold-bright), var(--gold));
+  color:#1c130d;
+  border:none;
+  padding:14px 22px;
+  border-radius: 14px;
+  font-weight:800;
+  font-size:14px;
+  cursor:pointer;
+  transition: transform .12s var(--ease), filter .2s;
+}
+.submit-btn:active{ transform: scale(.94); }
+.submit-btn:disabled{ filter: grayscale(.4) brightness(.75); }
+
+/* ===================== SUCCESS OVERLAY ===================== */
+.overlay{
+  position:fixed; inset:0; z-index:100;
+  background: rgba(10,7,5,0.82);
+  display:flex; align-items:center; justify-content:center;
+  padding:24px;
+  animation: fadeIn .25s var(--ease) both;
+}
+.overlay-card{
+  background: var(--surface);
+  border:1px solid var(--gold-dim);
+  border-radius: var(--radius-lg);
+  padding: 34px 26px;
+  text-align:center;
+  max-width:320px;
+  animation: popIn .4s var(--ease) both;
+}
+.overlay-icon{ font-size:46px; margin-bottom:12px; }
+.overlay-title{ font-family:'Fraunces', serif; font-size:20px; font-weight:700; margin-bottom:8px; }
+.overlay-text{ font-size:13.5px; color:var(--cream-dim); line-height:1.5; }
+.overlay-close{
+  margin-top:18px;
+  background: var(--gold);
+  color:#1c130d;
+  border:none;
+  padding:11px 22px;
+  border-radius:12px;
+  font-weight:800;
+  font-size:13.5px;
+  cursor:pointer;
+}
+
+/* Reduced motion respect */
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration:.001ms !important; animation-iteration-count:1 !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===================== HEADER ===================== -->
+<header class="app-header">
+  <div class="brand-eyebrow">Cafe Aroma</div>
+  <div class="cup-wrap">
+    <span class="steam"></span><span class="steam"></span><span class="steam"></span>
+    <span class="cup-emoji">☕️</span>
+  </div>
+  <h1 class="brand-name">Xush kelibsiz! ☕️</h1>
+  <p class="brand-welcome">Issiq taomlar, iliq muhit — barchasi bir joyda</p>
+  <div class="bean-divider"><span></span><span></span><span></span></div>
+</header>
+
+<!-- ===================== STOLLAR ===================== -->
+<section class="section">
+  <h2 class="section-title">🪑 Stol tanlang</h2>
+  <p class="section-sub">Bo'sh stolni bosib tanlang. Band stollar qizil rangda ko'rsatiladi.</p>
+  <div class="tables-grid" id="tablesGrid"></div>
+</section>
+
+<!-- ===================== MENYU ===================== -->
+<section class="section">
+  <h2 class="section-title">🍽️ Menyu</h2>
+  <p class="section-sub">Ishtaha ochuvchi taomlarimizdan tanlang</p>
+  <div class="menu-tabs" id="menuTabs"></div>
+  <div class="menu-list" id="menuList"></div>
+</section>
+
+<!-- ===================== SHAXSIY MA'LUMOTLAR ===================== -->
+<section class="section">
+  <h2 class="section-title">👤 Shaxsiy ma'lumotlar</h2>
+  <p class="section-sub">Buyurtmangiz bilan bog'lanishimiz uchun kerak</p>
+  <div class="form-group">
+    <label class="form-label">Ism va familiya</label>
+    <input type="text" id="nameInput" class="form-input" placeholder="Masalan: Aziz Karimov">
+  </div>
+  <div class="form-group">
+    <label class="form-label">Telefon raqam</label>
+    <input type="tel" id="phoneInput" class="form-input" placeholder="+998 90 123 45 67">
+  </div>
+</section>
+
+<!-- ===================== XARITA ===================== -->
+<section class="section">
+  <h2 class="section-title">📍 Yetkazib berish manzili</h2>
+  <p class="section-sub">Xaritada kerakli nuqtani bosing</p>
+  <div id="map"></div>
+  <div class="map-hint"><span class="dot"></span> Xaritani bosish orqali aniq manzilni belgilang</div>
+  <div class="location-badge" id="locationBadge">📍 Manzil belgilandi</div>
+</section>
+
+<!-- ===================== QO'SHIMCHA IZOH ===================== -->
+<section class="section">
+  <h2 class="section-title">📝 Qo'shimcha izoh</h2>
+  <p class="section-sub">Manzil haqida qo'shimcha ma'lumot, mo'ljal yoki alohida istak (ixtiyoriy emas)</p>
+  <div class="form-group">
+    <textarea id="noteInput" class="form-input note-input" rows="3" placeholder="Masalan: Ko'k darvozali uy, 2-qavat, zang tugmasi ishlamaydi..."></textarea>
+  </div>
+</section>
+
+<!-- ===================== TASDIQLASH CHECKBOX ===================== -->
+<section class="section confirm-section">
+  <label class="confirm-box" id="confirmBox">
+    <input type="checkbox" id="confirmCheckbox">
+    <span class="confirm-mark">✓</span>
+    <span class="confirm-text">Yolg'on buyurtma emasligini tasdiqlayman. Agarda yolg'on buyurtma bo'lsa qonuniy chora ko'rilishiga roziman!</span>
+  </label>
+</section>
+
+<!-- ===================== BOTTOM CART BAR ===================== -->
+<div class="cart-bar">
+  <div class="cart-inner">
+    <div class="cart-total-wrap">
+      <div class="cart-count" id="cartCount">Savatcha bo'sh</div>
+      <div class="cart-total" id="cartTotal">0 so'm</div>
+    </div>
+    <button class="submit-btn press" id="submitBtn">Tasdiqlash ✅</button>
+  </div>
+</div>
+
+<!-- ===================== SUCCESS / ERROR OVERLAY ===================== -->
+<div class="overlay hidden" id="overlay">
+  <div class="overlay-card">
+    <div class="overlay-icon" id="overlayIcon">✅</div>
+    <div class="overlay-title" id="overlayTitle">Buyurtma qabul qilindi!</div>
+    <div class="overlay-text" id="overlayText">Tez orada operatorimiz siz bilan bog'lanadi.</div>
+    <button class="overlay-close press" id="overlayClose">Yopish</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   TELEGRAM WEBAPP INIT
+   ============================================================ */
+const tg = window.Telegram?.WebApp;
+if (tg) {
+  tg.ready();
+  tg.expand();
+  try{ tg.setHeaderColor('#1b1310'); tg.setBackgroundColor('#140d0a'); }catch(e){}
+}
+function haptic(type){
+  if(!tg?.HapticFeedback) return;
+  if(type === 'success' || type === 'error' || type === 'warning'){
+    tg.HapticFeedback.notificationOccurred(type);
+  } else {
+    tg.HapticFeedback.impactOccurred(type || 'light');
+  }
+}
+
+/* ============================================================
+   CONFIG — backend manzili (agar index.html shu backend orqali
+   uzatilsa, bo'sh qoldirish kifoya — relative path ishlatiladi)
+   ============================================================ */
+const API_BASE = ''; // masalan: 'https://your-domain.com' — aks holda bo'sh qoldiring
+
+/* ============================================================
+   MENYU MA'LUMOTLARI
+   ============================================================ */
+const MENU = [
+  // ---- Kofe ----
+  {id:1, cat:'kofe', name:'Americano', desc:"Klassik qora kofe", price:18000, emoji:'☕️'},
+  {id:2, cat:'kofe', name:'Cappuccino', desc:'Sut ko\'pigi bilan', price:22000, emoji:'☕️'},
+  {id:3, cat:'kofe', name:'Latte', desc:'Yumshoq va krem ta\'mli', price:24000, emoji:'🥛'},
+  {id:4, cat:'kofe', name:'Espresso', desc:'Kuchli va konsentrat', price:15000, emoji:'☕️'},
+  {id:5, cat:'kofe', name:'Mokka', desc:'Shokolad + kofe', price:26000, emoji:'🍫'},
+  {id:6, cat:'kofe', name:'Flat White', desc:'Silliq va boy ta\'m', price:25000, emoji:'☕️'},
+  // ---- Shirinliklar ----
+  {id:7, cat:'shirin', name:'Tiramisu', desc:'Italyan klassikasi', price:28000, emoji:'🍰'},
+  {id:8, cat:'shirin', name:'Cheesecake', desc:'Kremli pishloqli tort', price:30000, emoji:'🍰'},
+  {id:9, cat:'shirin', name:'Croissant', desc:'Yog\'li fransuz bulochkasi', price:15000, emoji:'🥐'},
+  {id:10, cat:'shirin', name:'Napoleon tort', desc:'Qatlamli, kremli', price:25000, emoji:'🍮'},
+  {id:11, cat:'shirin', name:'Shokoladli fondant', desc:'Ichi suyuq shokolad', price:27000, emoji:'🍫'},
+  // ---- Fast-food ----
+  {id:12, cat:'fast', name:'Classic Burger', desc:'Mol go\'shti, sabzavotlar', price:35000, emoji:'🍔'},
+  {id:13, cat:'fast', name:'Cheeseburger', desc:'Qo\'shimcha pishloq bilan', price:38000, emoji:'🍔'},
+  {id:14, cat:'fast', name:'Club sendvich', desc:'Tovuq, bekon, sabzavot', price:32000, emoji:'🥪'},
+  {id:15, cat:'fast', name:'Margarita pitsa', desc:'Pomidor va mozzarella', price:45000, emoji:'🍕'},
+  {id:16, cat:'fast', name:'Pepperoni pitsa', desc:'Achchiq kolbasa bilan', price:50000, emoji:'🍕'},
+  {id:17, cat:'fast', name:'Hot-dog', desc:'Klassik retsept', price:20000, emoji:'🌭'},
+  // ---- Salatlar ----
+  {id:18, cat:'salat', name:'Caesar salat', desc:'Tovuq, krouton, sous', price:28000, emoji:'🥗'},
+  {id:19, cat:'salat', name:'Yunon salati', desc:'Feta pishloq, zaytun', price:26000, emoji:'🥗'},
+  {id:20, cat:'salat', name:'Sabzavotli salat', desc:'Yengil va foydali', price:20000, emoji:'🥬'},
+  {id:21, cat:'salat', name:'Tovuqli salat', desc:'To\'yimli va mazali', price:30000, emoji:'🥗'},
+];
+const CATEGORIES = [
+  {key:'kofe', label:'☕️ Kofe'},
+  {key:'shirin', label:'🍰 Shirinliklar'},
+  {key:'fast', label:'🍔 Fast-food'},
+  {key:'salat', label:'🥗 Salatlar'},
+];
+
+let activeCategory = 'kofe';
+const cart = {}; // {id: qty}
+let selectedTable = null;
+let selectedLatLng = null;
+let tablesData = {};
+
+/* ============================================================
+   STOLLAR — render va real-vaqt yangilanish
+   ============================================================ */
+const tablesGrid = document.getElementById('tablesGrid');
+
+function renderTables(){
+  tablesGrid.innerHTML = '';
+  const total = tablesData.total || 8;
+  const states = tablesData.tables || {};
+  for(let i=1; i<=total; i++){
+    const status = states[String(i)] || 'available';
+    const card = document.createElement('div');
+    const isSelected = selectedTable === i;
+    card.className = 'table-card ' + (status === 'reserved' ? 'reserved' : (isSelected ? 'selected' : 'available'));
+    card.style.animationDelay = (i * 0.04) + 's';
+    card.innerHTML = `
+      <div class="t-icon">${status === 'reserved' ? '🔒' : (isSelected ? '⭐️' : '🪑')}</div>
+      <div class="t-label">${i}-stol</div>
+      <div class="t-status">${status === 'reserved' ? 'Band' : (isSelected ? 'Tanlangan' : "Bo'sh")}</div>
+    `;
+    if(status !== 'reserved'){
+      card.addEventListener('click', () => {
+        selectedTable = i;
+        haptic('medium');
+        renderTables();
+      });
+    }
+    tablesGrid.appendChild(card);
+  }
+}
+
+async function fetchTables(){
+  try{
+    const res = await fetch(`${API_BASE}/api/tables`);
+    if(!res.ok) return;
+    tablesData = await res.json();
+    renderTables();
+  }catch(e){ /* backend hali ishga tushmagan bo'lishi mumkin */ }
+}
+fetchTables();
+setInterval(fetchTables, 4000); // real vaqt yangilanish
+
+/* ============================================================
+   MENYU — render, tab switching, savatcha
+   ============================================================ */
+const menuTabs = document.getElementById('menuTabs');
+const menuList = document.getElementById('menuList');
+
+function renderTabs(){
+  menuTabs.innerHTML = CATEGORIES.map(c => `
+    <div class="menu-tab ${c.key===activeCategory?'active':''}" data-cat="${c.key}">${c.label}</div>
+  `).join('');
+  menuTabs.querySelectorAll('.menu-tab').forEach(el => {
+    el.addEventListener('click', () => {
+      activeCategory = el.dataset.cat;
+      haptic('light');
+      renderTabs();
+      renderMenu();
+    });
+  });
+}
+
+function renderMenu(){
+  const items = MENU.filter(m => m.cat === activeCategory);
+  menuList.innerHTML = items.map((item, idx) => {
+    const qty = cart[item.id] || 0;
+    return `
+      <div class="menu-item" style="animation-delay:${idx*0.05}s">
+        <div class="m-emoji">${item.emoji}</div>
+        <div class="m-info">
+          <div class="m-name">${item.name}</div>
+          <div class="m-desc">${item.desc}</div>
+          <div class="m-price">${item.price.toLocaleString('ru-RU')} so'm</div>
+        </div>
+        <div class="qty-control">
+          <div class="qty-btn press minus" data-id="${item.id}">−</div>
+          <div class="qty-value">${qty}</div>
+          <div class="qty-btn plus press" data-id="${item.id}">+</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  menuList.querySelectorAll('.plus').forEach(btn => btn.addEventListener('click', () => changeQty(+btn.dataset.id, 1)));
+  menuList.querySelectorAll('.minus').forEach(btn => btn.addEventListener('click', () => changeQty(+btn.dataset.id, -1)));
+}
+
+function changeQty(id, delta){
+  const current = cart[id] || 0;
+  const next = Math.max(0, Math.min(50, current + delta));
+  if(next === 0) delete cart[id]; else cart[id] = next;
+  haptic('light');
+  renderMenu();
+  updateCartBar();
+}
+
+function updateCartBar(){
+  const ids = Object.keys(cart);
+  const count = ids.reduce((s,id) => s + cart[id], 0);
+  const total = ids.reduce((s,id) => {
+    const item = MENU.find(m => m.id === +id);
+    return s + (item ? item.price * cart[id] : 0);
+  }, 0);
+  document.getElementById('cartCount').textContent = count > 0 ? `${count} ta mahsulot` : "Savatcha bo'sh";
+  document.getElementById('cartTotal').textContent = total.toLocaleString('ru-RU') + " so'm";
+  return total;
+}
+
+renderTabs();
+renderMenu();
+updateCartBar();
+
+/* ============================================================
+   XARITA — Leaflet.js, Payariq tumani markazi
+   ============================================================ */
+const CHELAK_CENTER = [39.9203, 66.8611]; // Chelak shahri, Payariq tumani
+const map = L.map('map', { zoomControl: true, attributionControl: false }).setView(CHELAK_CENTER, 14);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+}).addTo(map);
+
+const goldIcon = L.divIcon({
+  className: '',
+  html: `<div style="font-size:30px; transform:translate(-50%,-90%);">📍</div>`,
+  iconSize: [0,0],
+});
+
+let marker = null;
+
+function placeMarker(latlng){
+  selectedLatLng = latlng;
+  if(marker){ map.removeLayer(marker); }
+  marker = L.marker(latlng, { icon: goldIcon, draggable: true }).addTo(map);
+  marker.on('dragend', (e) => {
+    selectedLatLng = e.target.getLatLng();
+    updateLocationBadge();
+  });
+  updateLocationBadge();
+}
+
+function updateLocationBadge(){
+  const badge = document.getElementById('locationBadge');
+  if(selectedLatLng){
+    badge.classList.add('show');
+    badge.textContent = `📍 Manzil belgilandi: ${selectedLatLng.lat.toFixed(4)}, ${selectedLatLng.lng.toFixed(4)}`;
+  }
+}
+
+map.on('click', (e) => {
+  haptic('medium');
+  placeMarker(e.latlng);
+});
+
+/* ============================================================
+   VALIDATSIYA VA YUBORISH
+   ============================================================ */
+const nameInput = document.getElementById('nameInput');
+const phoneInput = document.getElementById('phoneInput');
+const noteInput = document.getElementById('noteInput');
+const confirmCheckbox = document.getElementById('confirmCheckbox');
+const confirmBox = document.getElementById('confirmBox');
+const submitBtn = document.getElementById('submitBtn');
+const overlay = document.getElementById('overlay');
+
+confirmCheckbox.addEventListener('change', () => haptic('light'));
+
+function markError(el){
+  el.classList.add('error');
+  setTimeout(() => el.classList.remove('error'), 400);
+}
+
+function isValidPhone(v){
+  const cleaned = v.trim().replace(/\s+/g,'');
+  return /^\+998\d{9}$/.test(cleaned);
+}
+
+function validateOrder(){
+  let ok = true;
+
+  if(!selectedTable){
+    ok = false;
+    document.getElementById('tablesGrid').scrollIntoView({behavior:'smooth', block:'center'});
+  }
+  if(Object.keys(cart).length === 0){
+    ok = false;
+  }
+  if(nameInput.value.trim().length < 2){
+    markError(nameInput);
+    ok = false;
+  }
+  if(!isValidPhone(phoneInput.value)){
+    markError(phoneInput);
+    ok = false;
+  }
+  if(!selectedLatLng){
+    ok = false;
+    document.getElementById('map').scrollIntoView({behavior:'smooth', block:'center'});
+  }
+  if(!confirmCheckbox.checked){
+    ok = false;
+    confirmBox.classList.add('error');
+    setTimeout(() => confirmBox.classList.remove('error'), 400);
+  }
+  return ok;
+}
+
+function showOverlay({icon, title, text}){
+  document.getElementById('overlayIcon').textContent = icon;
+  document.getElementById('overlayTitle').textContent = title;
+  document.getElementById('overlayText').textContent = text;
+  overlay.classList.remove('hidden');
+}
+document.getElementById('overlayClose').addEventListener('click', () => {
+  overlay.classList.add('hidden');
+});
+
+submitBtn.addEventListener('click', async () => {
+  haptic('medium');
+
+  if(!validateOrder()){
+    haptic('error');
+    const confirmMissing = !confirmCheckbox.checked;
+    showOverlay({
+      icon: '⚠️',
+      title: "Ma'lumotlar to'liq emas",
+      text: confirmMissing
+        ? "Iltimos, barcha maydonlarni to'ldiring va pastdagi tasdiqlash bandini belgilang."
+        : "Iltimos, stol, savatcha, ism, telefon va yetkazish manzilini to'liq tekshiring."
+    });
+    return;
+  }
+
+  const items = Object.keys(cart).map(id => {
+    const item = MENU.find(m => m.id === +id);
+    return { id: item.id, name: item.name, price: item.price, qty: cart[id] };
+  });
+  const total = updateCartBar();
+
+  const payload = {
+    table: selectedTable,
+    name: nameInput.value.trim(),
+    phone: phoneInput.value.trim(),
+    items,
+    lat: selectedLatLng.lat,
+    lng: selectedLatLng.lng,
+    address_note: noteInput.value.trim(),
+    total,
+    tg_user_id: tg?.initDataUnsafe?.user?.id || null,
+    tg_username: tg?.initDataUnsafe?.user?.username || null,
+  };
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Yuborilmoqda...';
+
+  try{
+    const res = await fetch(`${API_BASE}/api/order`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if(res.ok){
+      haptic('success');
+      showOverlay({
+        icon: '✅',
+        title: 'Buyurtma qabul qilindi!',
+        text: data.message || "Tez orada operatorimiz siz bilan bog'lanadi."
+      });
+      // formani tozalash
+      Object.keys(cart).forEach(k => delete cart[k]);
+      renderMenu();
+      updateCartBar();
+      noteInput.value = '';
+      confirmCheckbox.checked = false;
+      setTimeout(() => { fetchTables(); }, 800);
+      setTimeout(() => { try{ tg?.close(); }catch(e){} }, 2600);
+    } else {
+      haptic('error');
+      showOverlay({
+        icon: '❌',
+        title: 'Xatolik yuz berdi',
+        text: data.detail || 'Iltimos, qaytadan urinib ko\'ring.'
+      });
+    }
+  }catch(err){
+    haptic('error');
+    showOverlay({
+      icon: '📡',
+      title: 'Aloqa xatosi',
+      text: "Serverga ulanib bo'lmadi. Internetni tekshirib, qayta urinib ko'ring."
+    });
+  }finally{
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Tasdiqlash ✅';
+  }
+});
+
+/* ============================================================
+   SCROLL REVEAL — sahifadagi bo'limlar chiqishi
+   ============================================================ */
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if(entry.isIntersecting){
+      entry.target.classList.add('reveal');
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.12 });
+document.querySelectorAll('.section').forEach(sec => observer.observe(sec));
+</script>
+</body>
+</html>
